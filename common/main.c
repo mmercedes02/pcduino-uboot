@@ -343,7 +343,7 @@ void main_loop(void)
 	/*
 	 * Main Loop for Monitor Command Processing
 	 */
-	buzzer_hang(4000);
+	//buzzer_hang(4000);
 	/* put my code in here */
 	parse_file_outer();
 	/* This point is never reached */
@@ -1292,13 +1292,9 @@ int run_command_list(const char *cmd, int len, int flag)
 
 	if (len == -1) {
 		len = strlen(cmd);
-#ifdef CONFIG_SYS_HUSH_PARSER
+		
 		/* hush will never change our string */
 		need_buff = 0;
-#else
-		/* the built-in parser will change our string if it sees \n */
-		need_buff = strchr(cmd, '\n') != NULL;
-#endif
 	}
 	if (need_buff) {
 		buff = malloc(len + 1);
@@ -1307,20 +1303,8 @@ int run_command_list(const char *cmd, int len, int flag)
 		memcpy(buff, cmd, len);
 		buff[len] = '\0';
 	}
-#ifdef CONFIG_SYS_HUSH_PARSER
+
 	rcode = parse_string_outer(buff, FLAG_PARSE_SEMICOLON);
-#else
-	/*
-	 * This function will overwrite any \n it sees with a \0, which
-	 * is why it can't work with a const char *. Here we are making
-	 * using of internal knowledge of this function, to avoid always
-	 * doing a malloc() which is actually required only in a case that
-	 * is pretty rare.
-	 */
-	rcode = builtin_run_command_list(buff, flag);
-	if (need_buff)
-		free(buff);
-#endif
 
 	return rcode;
 }
