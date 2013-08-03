@@ -55,18 +55,9 @@
 #include <logbuff.h>
 #include <asm/sections.h>
 
-#ifdef CONFIG_BITBANGMII
-#include <miiphy.h>
-#endif
-
 DECLARE_GLOBAL_DATA_PTR;
 
 ulong monitor_flash_len;
-
-#ifdef CONFIG_HAS_DATAFLASH
-extern int  AT91F_DataflashInit(void);
-extern void dataflash_print_info(void);
-#endif
 
 #if defined(CONFIG_HARD_I2C) || \
     defined(CONFIG_SOFT_I2C)
@@ -107,10 +98,6 @@ void blue_led_off(void) __attribute__((weak, alias("__blue_led_off")));
  * but let's get it working (again) first...
  */
 
-#if defined(CONFIG_ARM_DCC) && !defined(CONFIG_BAUDRATE)
-#define CONFIG_BAUDRATE 115200
-#endif
-
 static int init_baudrate(void)
 {
 	gd->baudrate = getenv_ulong("baudrate", 10, CONFIG_BAUDRATE);
@@ -123,13 +110,6 @@ static int display_banner(void)
 	debug("U-Boot code: %08lX -> %08lX  BSS: -> %08lX\n",
 	       _TEXT_BASE,
 	       _bss_start_ofs + _TEXT_BASE, _bss_end_ofs + _TEXT_BASE);
-#ifdef CONFIG_MODEM_SUPPORT
-	debug("Modem Support enabled\n");
-#endif
-#ifdef CONFIG_USE_IRQ
-	debug("IRQ Stack: %08lx\n", IRQ_STACK_START);
-	debug("FIQ Stack: %08lx\n", FIQ_STACK_START);
-#endif
 
 	return (0);
 }
@@ -165,7 +145,6 @@ static int display_dram_config(void)
 	return (0);
 }
 
-#if defined(CONFIG_HARD_I2C) || defined(CONFIG_SOFT_I2C)
 static int init_func_i2c(void)
 {
 	puts("I2C:   ");
@@ -173,7 +152,6 @@ static int init_func_i2c(void)
 	puts("ready\n");
 	return (0);
 }
-#endif
 
 #if defined(CONFIG_CMD_PCI) || defined (CONFIG_PCI)
 #include <pci.h>
@@ -242,35 +220,17 @@ static int mark_bootstage(void)
 }
 
 init_fnc_t *init_sequence[] = {
-	arch_cpu_init,		/* basic arch cpu dependent setup */
-	mark_bootstage,
-#ifdef CONFIG_OF_CONTROL
-	fdtdec_check_fdt,
-#endif
-#if defined(CONFIG_BOARD_EARLY_INIT_F)
-	board_early_init_f,
-#endif
+	arch_cpu_init,		/* basic arch cpu dependent setup , xxx*/
+	mark_bootstage,		/* xxx */
 	timer_init,		/* initialize timer */
-#ifdef CONFIG_BOARD_POSTCLK_INIT
-	board_postclk_init,
-#endif
-#ifdef CONFIG_FSL_ESDHC
-	get_clocks,
-#endif
 	env_init,		/* initialize environment */
 	init_baudrate,		/* initialze baudrate settings */
 	serial_init,		/* serial communications setup */
 	console_init_f,		/* stage 1 init of console */
 	display_banner,		/* say that we are here */
-#if defined(CONFIG_DISPLAY_CPUINFO)
 	print_cpuinfo,		/* display cpu info (and speed) */
-#endif
-#if defined(CONFIG_DISPLAY_BOARDINFO)
 	checkboard,		/* display board info */
-#endif
-#if defined(CONFIG_HARD_I2C) || defined(CONFIG_SOFT_I2C)
 	init_func_i2c,
-#endif
 	dram_init,		/* configure available RAM banks */
 	NULL,
 };
@@ -388,10 +348,6 @@ void board_init_f(ulong bootflag)
 	memcpy(id, (void *)gd, sizeof(gd_t));
 }
 
-#if !defined(CONFIG_SYS_NO_FLASH)
-static char *failed = "*** failed ***\n";
-#endif
-
 /*
  * Tell if it's OK to load the environment early in boot.
  *
@@ -405,24 +361,8 @@ static char *failed = "*** failed ***\n";
  */
 static int should_load_env(void)
 {
-#ifdef CONFIG_OF_CONTROL
-	return fdtdec_get_config_int(gd->fdt_blob, "load-environment", 1);
-#elif defined CONFIG_DELAY_ENVIRONMENT
-	return 0;
-#else
 	return 1;
-#endif
 }
-
-#if defined(CONFIG_DISPLAY_BOARDINFO_LATE) && defined(CONFIG_OF_CONTROL)
-static void display_fdt_model(const void *blob)
-{
-	const char *model;
-
-	model = (char *)fdt_getprop(blob, 0, "model", NULL);
-	printf("Model: %s\n", model ? model : "<unknown>");
-}
-#endif
 
 /************************************************************************
  *
@@ -496,14 +436,11 @@ void board_init_r(gd_t *id, ulong dest_addr)
 
 	/* Initialize from environment */
 	load_addr = getenv_ulong("loadaddr", 16, load_addr);
-
+	/* 0x50000000 */
+	
 #if defined(CONFIG_CMD_NET)
 	puts("Net:   ");
 	eth_initialize(gd->bd);
-#if defined(CONFIG_RESET_PHY_R)
-	debug("Reset Ethernet PHY\n");
-	reset_phy();
-#endif
 #endif
 
 	/* main_loop() can return to retry autoboot, if so just run it again. */

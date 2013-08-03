@@ -163,6 +163,8 @@
 	"fi;" \
 	"run autoboot;" \
 	""
+#undef CONFIG_BOOTCOMMAND
+#define CONFIG_BOOTCOMMAND "bootm 0x50000000;"
 
 #define RESET_WATCHDOG "true"
 

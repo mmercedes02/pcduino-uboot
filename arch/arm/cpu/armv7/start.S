@@ -116,7 +116,6 @@ reset:
  * (OMAP4 spl TEXT_BASE is not 32 byte aligned.
  * Continue to use ROM code vector only in OMAP4 spl)
  */
-#if !(defined(CONFIG_OMAP44XX) && defined(CONFIG_SPL_BUILD))
 	/* Set V=0 in CP15 SCTRL register - for VBAR to point to vector */
 	mrc	p15, 0, r0, c1, c0, 0	@ Read CP15 SCTRL Register
 	bic	r0, #CR_V		@ V = 0
@@ -125,13 +124,10 @@ reset:
 	/* Set vector address in CP15 VBAR register */
 	ldr	r0, =_start
 	mcr	p15, 0, r0, c12, c0, 0	@Set VBAR
-#endif
 
 	/* the mask ROM code should have PLL and others stable */
-#ifndef CONFIG_SKIP_LOWLEVEL_INIT
 	bl	cpu_init_cp15
 	bl	cpu_init_crit
-#endif
 
 	bl	_main
 
@@ -141,11 +137,9 @@ ENTRY(c_runtime_cpu_setup)
 /*
  * If I-cache is enabled invalidate it
  */
-#ifndef CONFIG_SYS_ICACHE_OFF
 	mcr	p15, 0, r0, c7, c5, 0	@ invalidate icache
 	mcr     p15, 0, r0, c7, c10, 4	@ DSB
 	mcr     p15, 0, r0, c7, c5, 4	@ ISB
-#endif
 /*
  * Move vector table
  */
@@ -198,41 +192,12 @@ ENTRY(cpu_init_cp15)
 	bic	r0, r0, #0x00000007	@ clear bits 2:0 (-CAM)
 	orr	r0, r0, #0x00000002	@ set bit 1 (--A-) Align
 	orr	r0, r0, #0x00000800	@ set bit 11 (Z---) BTB
-#ifdef CONFIG_SYS_ICACHE_OFF
-	bic	r0, r0, #0x00001000	@ clear bit 12 (I) I-cache
-#else
 	orr	r0, r0, #0x00001000	@ set bit 12 (I) I-cache
-#endif
 	mcr	p15, 0, r0, c1, c0, 0
-
-#ifdef CONFIG_ARM_ERRATA_716044
-	mrc	p15, 0, r0, c1, c0, 0	@ read system control register
-	orr	r0, r0, #1 << 11	@ set bit #11
-	mcr	p15, 0, r0, c1, c0, 0	@ write system control register
-#endif
-
-#ifdef CONFIG_ARM_ERRATA_742230
-	mrc	p15, 0, r0, c15, c0, 1	@ read diagnostic register
-	orr	r0, r0, #1 << 4		@ set bit #4
-	mcr	p15, 0, r0, c15, c0, 1	@ write diagnostic register
-#endif
-
-#ifdef CONFIG_ARM_ERRATA_743622
-	mrc	p15, 0, r0, c15, c0, 1	@ read diagnostic register
-	orr	r0, r0, #1 << 6		@ set bit #6
-	mcr	p15, 0, r0, c15, c0, 1	@ write diagnostic register
-#endif
-
-#ifdef CONFIG_ARM_ERRATA_751472
-	mrc	p15, 0, r0, c15, c0, 1	@ read diagnostic register
-	orr	r0, r0, #1 << 11	@ set bit #11
-	mcr	p15, 0, r0, c15, c0, 1	@ write diagnostic register
-#endif
 
 	mov	pc, lr			@ back to my caller
 ENDPROC(cpu_init_cp15)
 
-#ifndef CONFIG_SKIP_LOWLEVEL_INIT
 /*************************************************************************
  *
  * CPU_init_critical registers
@@ -250,9 +215,7 @@ ENTRY(cpu_init_crit)
 	 */
 	b	lowlevel_init		@ go setup pll,mux,memory
 ENDPROC(cpu_init_crit)
-#endif
 
-#ifndef CONFIG_SPL_BUILD
 /*
  *************************************************************************
  *
@@ -410,25 +373,6 @@ not_used:
 	bad_save_user_regs
 	bl	do_not_used
 
-#ifdef CONFIG_USE_IRQ
-
-	.align	5
-irq:
-	get_irq_stack
-	irq_save_user_regs
-	bl	do_irq
-	irq_restore_user_regs
-
-	.align	5
-fiq:
-	get_fiq_stack
-	/* someone ought to write a more effective fiq_save_user_regs */
-	irq_save_user_regs
-	bl	do_fiq
-	irq_restore_user_regs
-
-#else
-
 	.align	5
 irq:
 	get_bad_stack
@@ -440,6 +384,3 @@ fiq:
 	get_bad_stack
 	bad_save_user_regs
 	bl	do_fiq
-
-#endif /* CONFIG_USE_IRQ */
-#endif /* CONFIG_SPL_BUILD */

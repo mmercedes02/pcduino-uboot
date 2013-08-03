@@ -84,7 +84,6 @@ ENTRY(_main)
 	mov	r0, #0
 	bl	board_init_f
 
-#if ! defined(CONFIG_SPL_BUILD)
 /*
  * Set up intermediate environment (new sp and gd) and call
  * relocate_code(addr_moni). Trick here is that we'll return
@@ -116,10 +115,7 @@ clbss_l:cmp	r0, r1			/* while not at end of BSS */
 	strlo	r2, [r0]		/* clear 32-bit BSS word */
 	addlo	r0, r0, #4		/* move to next */
 	blo	clbss_l
-
-	bl coloured_LED_init
-	bl red_led_on
-
+	
 	/* call board_init_r(gd_t *id, ulong dest_addr) */
 	mov	r0, r8			/* gd_t */
 	ldr	r1, [r8, #GD_RELOCADDR]	/* dest_addr */
@@ -127,7 +123,5 @@ clbss_l:cmp	r0, r1			/* while not at end of BSS */
 	ldr	pc, =board_init_r	/* this is auto-relocated! */
 
 	/* we should not return here. */
-
-#endif
 
 ENDPROC(_main)

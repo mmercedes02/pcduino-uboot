@@ -562,11 +562,6 @@ int console_init_f(void)
 {
 	gd->have_console = 1;
 
-#ifdef CONFIG_SILENT_CONSOLE
-	if (getenv("silent") != NULL)
-		gd->flags |= GD_FLG_SILENT;
-#endif
-
 	print_pre_console_buffer();
 
 	return 0;
@@ -597,95 +592,6 @@ void stdio_print_current_devices(void)
 	}
 }
 
-#ifdef CONFIG_SYS_CONSOLE_IS_IN_ENV
-/* Called after the relocation - use desired console functions */
-int console_init_r(void)
-{
-	char *stdinname, *stdoutname, *stderrname;
-	struct stdio_dev *inputdev = NULL, *outputdev = NULL, *errdev = NULL;
-#ifdef CONFIG_SYS_CONSOLE_ENV_OVERWRITE
-	int i;
-#endif /* CONFIG_SYS_CONSOLE_ENV_OVERWRITE */
-#ifdef CONFIG_CONSOLE_MUX
-	int iomux_err = 0;
-#endif
-
-	/* set default handlers at first */
-	gd->jt[XF_getc] = serial_getc;
-	gd->jt[XF_tstc] = serial_tstc;
-	gd->jt[XF_putc] = serial_putc;
-	gd->jt[XF_puts] = serial_puts;
-	gd->jt[XF_printf] = serial_printf;
-
-	/* stdin stdout and stderr are in environment */
-	/* scan for it */
-	stdinname  = getenv("stdin");
-	stdoutname = getenv("stdout");
-	stderrname = getenv("stderr");
-
-	if (OVERWRITE_CONSOLE == 0) {	/* if not overwritten by config switch */
-		inputdev  = search_device(DEV_FLAGS_INPUT,  stdinname);
-		outputdev = search_device(DEV_FLAGS_OUTPUT, stdoutname);
-		errdev    = search_device(DEV_FLAGS_OUTPUT, stderrname);
-#ifdef CONFIG_CONSOLE_MUX
-		iomux_err = iomux_doenv(stdin, stdinname);
-		iomux_err += iomux_doenv(stdout, stdoutname);
-		iomux_err += iomux_doenv(stderr, stderrname);
-		if (!iomux_err)
-			/* Successful, so skip all the code below. */
-			goto done;
-#endif
-	}
-	/* if the devices are overwritten or not found, use default device */
-	if (inputdev == NULL) {
-		inputdev  = search_device(DEV_FLAGS_INPUT,  "serial");
-	}
-	if (outputdev == NULL) {
-		outputdev = search_device(DEV_FLAGS_OUTPUT, "serial");
-	}
-	if (errdev == NULL) {
-		errdev    = search_device(DEV_FLAGS_OUTPUT, "serial");
-	}
-	/* Initializes output console first */
-	if (outputdev != NULL) {
-		/* need to set a console if not done above. */
-		console_doenv(stdout, outputdev);
-	}
-	if (errdev != NULL) {
-		/* need to set a console if not done above. */
-		console_doenv(stderr, errdev);
-	}
-	if (inputdev != NULL) {
-		/* need to set a console if not done above. */
-		console_doenv(stdin, inputdev);
-	}
-
-#ifdef CONFIG_CONSOLE_MUX
-done:
-#endif
-
-#ifndef CONFIG_SYS_CONSOLE_INFO_QUIET
-	stdio_print_current_devices();
-#endif /* CONFIG_SYS_CONSOLE_INFO_QUIET */
-
-#ifdef CONFIG_SYS_CONSOLE_ENV_OVERWRITE
-	/* set the environment variables (will overwrite previous env settings) */
-	for (i = 0; i < 3; i++) {
-		setenv(stdio_names[i], stdio_devices[i]->name);
-	}
-#endif /* CONFIG_SYS_CONSOLE_ENV_OVERWRITE */
-
-	gd->flags |= GD_FLG_DEVINIT;	/* device initialization completed */
-
-#if 0
-	/* If nothing usable installed, use only the initial console */
-	if ((stdio_devices[stdin] == NULL) && (stdio_devices[stdout] == NULL))
-		return 0;
-#endif
-	return 0;
-}
-
-#else /* CONFIG_SYS_CONSOLE_IS_IN_ENV */
 
 /* Called after the relocation - use desired console functions */
 int console_init_r(void)
@@ -695,19 +601,6 @@ int console_init_r(void)
 	struct list_head *list = stdio_get_list();
 	struct list_head *pos;
 	struct stdio_dev *dev;
-
-#ifdef CONFIG_SPLASH_SCREEN
-	/*
-	 * suppress all output if splash screen is enabled and we have
-	 * a bmp to display. We redirect the output from frame buffer
-	 * console to serial console in this case or suppress it if
-	 * "silent" mode was requested.
-	 */
-	if (getenv("splashimage") != NULL) {
-		if (!(gd->flags & GD_FLG_SILENT))
-			outputdev = search_device (DEV_FLAGS_OUTPUT, "serial");
-	}
-#endif
 
 	/* Scan devices looking for input and output devices */
 	list_for_each(pos, list) {
@@ -727,23 +620,12 @@ int console_init_r(void)
 	if (outputdev != NULL) {
 		console_setfile(stdout, outputdev);
 		console_setfile(stderr, outputdev);
-#ifdef CONFIG_CONSOLE_MUX
-		console_devices[stdout][0] = outputdev;
-		console_devices[stderr][0] = outputdev;
-#endif
 	}
 
 	/* Initializes input console */
 	if (inputdev != NULL) {
 		console_setfile(stdin, inputdev);
-#ifdef CONFIG_CONSOLE_MUX
-		console_devices[stdin][0] = inputdev;
-#endif
 	}
-
-#ifndef CONFIG_SYS_CONSOLE_INFO_QUIET
-	stdio_print_current_devices();
-#endif /* CONFIG_SYS_CONSOLE_INFO_QUIET */
 
 	/* Setting environment variables */
 	for (i = 0; i < 3; i++) {
@@ -752,13 +634,5 @@ int console_init_r(void)
 
 	gd->flags |= GD_FLG_DEVINIT;	/* device initialization completed */
 
-#if 0
-	/* If nothing usable installed, use only the initial console */
-	if ((stdio_devices[stdin] == NULL) && (stdio_devices[stdout] == NULL))
-		return 0;
-#endif
-
 	return 0;
 }
-
-#endif /* CONFIG_SYS_CONSOLE_IS_IN_ENV */

@@ -1372,7 +1372,6 @@ static int parse_stream_outer(struct in_str *inp, int flag)
 	int rcode;
 	int code = 0;
 
-	//printf("inp->p: %s\n", inp->p);
 	do {
 		ctx.type = flag;
 		initialize_context(&ctx);
