@@ -52,16 +52,6 @@
 #include <fdt_support.h>
 #endif
 
-#ifdef CONFIG_LZMA
-#include <lzma/LzmaTypes.h>
-#include <lzma/LzmaDec.h>
-#include <lzma/LzmaTools.h>
-#endif /* CONFIG_LZMA */
-
-#ifdef CONFIG_LZO
-#include <linux/lzo.h>
-#endif /* CONFIG_LZO */
-
 DECLARE_GLOBAL_DATA_PTR;
 
 #ifndef CONFIG_SYS_BOOTM_LEN
@@ -89,10 +79,6 @@ static int do_imls(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[]);
 #include <linux/err.h>
 #include <nand.h>
 
-#if defined(CONFIG_SILENT_CONSOLE) && !defined(CONFIG_SILENT_U_BOOT_ONLY)
-static void fixup_silent_linux(void);
-#endif
-
 static const void *boot_get_kernel(cmd_tbl_t *cmdtp, int flag, int argc,
 				char * const argv[], bootm_headers_t *images,
 				ulong *os_data, ulong *os_len);
@@ -114,15 +100,8 @@ extern boot_os_fn do_bootm_linux;
 #ifdef CONFIG_BOOTM_NETBSD
 static boot_os_fn do_bootm_netbsd;
 #endif
-#if defined(CONFIG_LYNXKDI)
-static boot_os_fn do_bootm_lynxkdi;
-extern void lynxkdi_boot(image_header_t *);
-#endif
 #ifdef CONFIG_BOOTM_RTEMS
 static boot_os_fn do_bootm_rtems;
-#endif
-#if defined(CONFIG_BOOTM_OSE)
-static boot_os_fn do_bootm_ose;
 #endif
 #if defined(CONFIG_BOOTM_PLAN9)
 static boot_os_fn do_bootm_plan9;
@@ -133,9 +112,6 @@ static boot_os_fn do_bootm_qnxelf;
 int do_bootvx(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[]);
 int do_bootelf(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[]);
 #endif
-#if defined(CONFIG_INTEGRITY)
-static boot_os_fn do_bootm_integrity;
-#endif
 
 static boot_os_fn *boot_os[] = {
 #ifdef CONFIG_BOOTM_LINUX
@@ -144,14 +120,8 @@ static boot_os_fn *boot_os[] = {
 #ifdef CONFIG_BOOTM_NETBSD
 	[IH_OS_NETBSD] = do_bootm_netbsd,
 #endif
-#ifdef CONFIG_LYNXKDI
-	[IH_OS_LYNXOS] = do_bootm_lynxkdi,
-#endif
 #ifdef CONFIG_BOOTM_RTEMS
 	[IH_OS_RTEMS] = do_bootm_rtems,
-#endif
-#if defined(CONFIG_BOOTM_OSE)
-	[IH_OS_OSE] = do_bootm_ose,
 #endif
 #if defined(CONFIG_BOOTM_PLAN9)
 	[IH_OS_PLAN9] = do_bootm_plan9,
@@ -159,9 +129,6 @@ static boot_os_fn *boot_os[] = {
 #if defined(CONFIG_CMD_ELF)
 	[IH_OS_VXWORKS] = do_bootm_vxworks,
 	[IH_OS_QNX] = do_bootm_qnxelf,
-#endif
-#ifdef CONFIG_INTEGRITY
-	[IH_OS_INTEGRITY] = do_bootm_integrity,
 #endif
 };
 
@@ -176,7 +143,6 @@ void arch_preboot_os(void) __attribute__((weak, alias("__arch_preboot_os")));
 
 #define IH_INITRD_ARCH IH_ARCH_DEFAULT
 
-#ifdef CONFIG_LMB
 static void boot_start_lmb(bootm_headers_t *images)
 {
 	ulong		mem_start;
@@ -192,10 +158,6 @@ static void boot_start_lmb(bootm_headers_t *images)
 	arch_lmb_reserve(&images->lmb);
 	board_lmb_reserve(&images->lmb);
 }
-#else
-#define lmb_reserve(lmb, base, size)
-static inline void boot_start_lmb(bootm_headers_t *images) { }
-#endif
 
 static int bootm_start(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 {
@@ -332,9 +294,6 @@ static int bootm_load_os(image_info_t os, ulong *load_end, int boot_progress)
 	__maybe_unused uint unc_len = CONFIG_SYS_BOOTM_LEN;
 	int no_overlap = 0;
 	void *load_buf, *image_buf;
-#if defined(CONFIG_LZMA) || defined(CONFIG_LZO)
-	int ret;
-#endif /* defined(CONFIG_LZMA) || defined(CONFIG_LZO) */
 
 	const char *type_name = genimg_get_type_name(os.type);
 
@@ -366,63 +325,6 @@ static int bootm_load_os(image_info_t os, ulong *load_end, int boot_progress)
 		*load_end = load + image_len;
 		break;
 #endif /* CONFIG_GZIP */
-#ifdef CONFIG_BZIP2
-	case IH_COMP_BZIP2:
-		printf("   Uncompressing %s ... ", type_name);
-		/*
-		 * If we've got less than 4 MB of malloc() space,
-		 * use slower decompression algorithm which requires
-		 * at most 2300 KB of memory.
-		 */
-		int i = BZ2_bzBuffToBuffDecompress(load_buf, &unc_len,
-			image_buf, image_len,
-			CONFIG_SYS_MALLOC_LEN < (4096 * 1024), 0);
-		if (i != BZ_OK) {
-			printf("BUNZIP2: uncompress or overwrite error %d "
-				"- must RESET board to recover\n", i);
-			if (boot_progress)
-				bootstage_error(BOOTSTAGE_ID_DECOMP_IMAGE);
-			return BOOTM_ERR_RESET;
-		}
-
-		*load_end = load + unc_len;
-		break;
-#endif /* CONFIG_BZIP2 */
-#ifdef CONFIG_LZMA
-	case IH_COMP_LZMA: {
-		SizeT lzma_len = unc_len;
-		printf("   Uncompressing %s ... ", type_name);
-
-		ret = lzmaBuffToBuffDecompress(load_buf, &lzma_len,
-					       image_buf, image_len);
-		unc_len = lzma_len;
-		if (ret != SZ_OK) {
-			printf("LZMA: uncompress or overwrite error %d "
-				"- must RESET board to recover\n", ret);
-			bootstage_error(BOOTSTAGE_ID_DECOMP_IMAGE);
-			return BOOTM_ERR_RESET;
-		}
-		*load_end = load + unc_len;
-		break;
-	}
-#endif /* CONFIG_LZMA */
-#ifdef CONFIG_LZO
-	case IH_COMP_LZO:
-		printf("   Uncompressing %s ... ", type_name);
-
-		ret = lzop_decompress(image_buf, image_len, load_buf,
-				      &unc_len);
-		if (ret != LZO_E_OK) {
-			printf("LZO: uncompress or overwrite error %d "
-			      "- must RESET board to recover\n", ret);
-			if (boot_progress)
-				bootstage_error(BOOTSTAGE_ID_DECOMP_IMAGE);
-			return BOOTM_ERR_RESET;
-		}
-
-		*load_end = load + unc_len;
-		break;
-#endif /* CONFIG_LZO */
 	default:
 		printf("Unimplemented compression type %d\n", comp);
 		return BOOTM_ERR_UNIMPLEMENTED;
@@ -591,24 +493,6 @@ int do_bootm(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	ulong		load_end = 0;
 	int		ret;
 	boot_os_fn	*boot_fn;
-#ifdef CONFIG_NEEDS_MANUAL_RELOC
-	static int relocated = 0;
-
-	if (!relocated) {
-		int i;
-
-		/* relocate boot function table */
-		for (i = 0; i < ARRAY_SIZE(boot_os); i++)
-			if (boot_os[i] != NULL)
-				boot_os[i] += gd->reloc_off;
-
-		/* relocate names of sub-command table */
-		for (i = 0; i < ARRAY_SIZE(cmd_bootm_sub); i++)
-			cmd_bootm_sub[i].name += gd->reloc_off;
-
-		relocated = 1;
-	}
-#endif
 
 	/* determine if we have a sub command */
 	if (argc > 1) {
@@ -694,11 +578,6 @@ int do_bootm(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	}
 
 	bootstage_mark(BOOTSTAGE_ID_CHECK_BOOT_OS);
-
-#if defined(CONFIG_SILENT_CONSOLE) && !defined(CONFIG_SILENT_U_BOOT_ONLY)
-	if (images.os.os == IH_OS_LINUX)
-		fixup_silent_linux();
-#endif
 
 	boot_fn = boot_os[images.os.os];
 
@@ -1125,139 +1004,6 @@ next_sector:		;
 		}
 next_bank:	;
 	}
-	return 0;
-}
-#endif
-
-#if defined(CONFIG_CMD_IMLS_NAND)
-static int nand_imls_legacyimage(nand_info_t *nand, int nand_dev, loff_t off,
-		size_t len)
-{
-	void *imgdata;
-	int ret;
-
-	imgdata = malloc(len);
-	if (!imgdata) {
-		printf("May be a Legacy Image at NAND device %d offset %08llX:\n",
-				nand_dev, off);
-		printf("   Low memory(cannot allocate memory for image)\n");
-		return -ENOMEM;
-	}
-
-	ret = nand_read_skip_bad(nand, off, &len,
-			imgdata);
-	if (ret < 0 && ret != -EUCLEAN) {
-		free(imgdata);
-		return ret;
-	}
-
-	if (!image_check_hcrc(imgdata)) {
-		free(imgdata);
-		return 0;
-	}
-
-	printf("Legacy Image at NAND device %d offset %08llX:\n",
-			nand_dev, off);
-	image_print_contents(imgdata);
-
-	puts("   Verifying Checksum ... ");
-	if (!image_check_dcrc(imgdata))
-		puts("Bad Data CRC\n");
-	else
-		puts("OK\n");
-
-	free(imgdata);
-
-	return 0;
-}
-
-static int nand_imls_fitimage(nand_info_t *nand, int nand_dev, loff_t off,
-		size_t len)
-{
-	void *imgdata;
-	int ret;
-
-	imgdata = malloc(len);
-	if (!imgdata) {
-		printf("May be a FIT Image at NAND device %d offset %08llX:\n",
-				nand_dev, off);
-		printf("   Low memory(cannot allocate memory for image)\n");
-		return -ENOMEM;
-	}
-
-	ret = nand_read_skip_bad(nand, off, &len,
-			imgdata);
-	if (ret < 0 && ret != -EUCLEAN) {
-		free(imgdata);
-		return ret;
-	}
-
-	if (!fit_check_format(imgdata)) {
-		free(imgdata);
-		return 0;
-	}
-
-	printf("FIT Image at NAND device %d offset %08llX:\n", nand_dev, off);
-
-	fit_print_contents(imgdata);
-	free(imgdata);
-
-	return 0;
-}
-
-static int do_imls_nand(void)
-{
-	nand_info_t *nand;
-	int nand_dev = nand_curr_device;
-	size_t len;
-	loff_t off;
-	u32 buffer[16];
-
-	if (nand_dev < 0 || nand_dev >= CONFIG_SYS_MAX_NAND_DEVICE) {
-		puts("\nNo NAND devices available\n");
-		return -ENODEV;
-	}
-
-	printf("\n");
-
-	for (nand_dev = 0; nand_dev < CONFIG_SYS_MAX_NAND_DEVICE; nand_dev++) {
-		nand = &nand_info[nand_dev];
-		if (!nand->name || !nand->size)
-			continue;
-
-		for (off = 0; off < nand->size; off += nand->erasesize) {
-			const image_header_t *header;
-			int ret;
-
-			if (nand_block_isbad(nand, off))
-				continue;
-
-			len = sizeof(buffer);
-
-			ret = nand_read(nand, off, &len, (u8 *)buffer);
-			if (ret < 0 && ret != -EUCLEAN) {
-				printf("NAND read error %d at offset %08llX\n",
-						ret, off);
-				continue;
-			}
-
-			switch (genimg_get_format(buffer)) {
-			case IMAGE_FORMAT_LEGACY:
-				header = (const image_header_t *)buffer;
-
-				len = image_get_image_size(header);
-				nand_imls_legacyimage(nand, nand_dev, off, len);
-				break;
-#if defined(CONFIG_FIT)
-			case IMAGE_FORMAT_FIT:
-				len = fit_get_size(buffer);
-				nand_imls_fitimage(nand, nand_dev, off, len);
-				break;
-#endif
-			}
-		}
-	}
-
 	return 0;
 }
 #endif

@@ -85,7 +85,6 @@ extern void _start(void);
 #define CONFIG_SYS_SYM_OFFSETS
 #endif
 
-#ifdef CONFIG_SYS_SYM_OFFSETS
 /* Start/end of the relocation entries, as an offset from _start */
 extern ulong _rel_dyn_start_ofs;
 extern ulong _rel_dyn_end_ofs;
@@ -99,19 +98,7 @@ extern ulong _image_copy_end_ofs;
 extern ulong _bss_start_ofs;	/* BSS start relative to _start */
 extern ulong _bss_end_ofs;		/* BSS end relative to _start */
 extern ulong _end_ofs;		/* end of image relative to _start */
-
 extern ulong _TEXT_BASE;	/* code start */
 
-#else /* don't use offsets: */
-
-/* Exports from the Linker Script */
-extern ulong __data_end;
-extern ulong __rel_dyn_start;
-extern ulong __rel_dyn_end;
-extern ulong __bss_end;
-
-extern ulong _TEXT_BASE;	/* code start */
-
-#endif
 
 #endif /* _ASM_GENERIC_SECTIONS_H_ */

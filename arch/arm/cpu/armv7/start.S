@@ -29,9 +29,9 @@
  * MA 02111-1307 USA
  */
 
-#include <asm-offsets.h>
-#include <config.h>
-#include <version.h>
+//#include <asm-offsets.h>
+//#include <config.h>
+//#include <version.h>
 #include <asm/system.h>
 #include <linux/linkage.h>
 
@@ -52,7 +52,7 @@ _data_abort:		.word data_abort
 _not_used:		.word not_used
 _irq:			.word irq
 _fiq:			.word fiq
-/*_pad:			.word 0x12345678 *//* now 16*4=64 */
+_pad:			.word 0x12345678 /* now 16*4=64 */
 
 .global _end_vect
 _end_vect:
